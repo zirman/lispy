@@ -44,6 +44,7 @@ enum Type {
   ATOM,
   LIST,
   CORE,
+  BOOLEAN,
   NUMBER,
   STRING,
   LAMBDA,

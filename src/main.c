@@ -53,6 +53,7 @@ Expression read_expression();
 
 void print_expression(Expression expression);
 void print_break();
+int truthy(Expression expression);
 
 void error(const char * const s);
 
@@ -63,10 +64,10 @@ Expression head_c(List l);
 List tail_c(List l);
 List cons_c(Expression head, List tail);
 
-// Special forms 'lambda', 'quote', and 'define' are non-strict and cannot be
-// used as a value.
+// Special forms 'lambda', 'quote', 'define' and 'cond' are non-strictly
+// evaluated in normal order.
 
-// Core functions that are strictly evalutated and can be used as values.
+// Core functions that are strictly evalutated in applicative order.
 
 Expression eval(List l);
 Expression cons(List l);
@@ -275,6 +276,10 @@ void fprint_expression(FILE * restrict stream, Expression expression) {
     fputc(')', stream);
     return;
 
+  case BOOLEAN:
+    fprintf(stream, "BOOLEAN: ");
+    return;
+
   case NUMBER:
     fprintf(stream, "NUMBER: ");
     return;
@@ -291,6 +296,30 @@ void print_expression(Expression expression) {
 
 void print_break() {
   fputc('\n', stdout);
+}
+
+int truthy(Expression expression) {
+
+  if (expression == NULL) {
+    return 0;
+  }
+
+  switch (expression->type) {
+  case UNDEFINED:
+    return 0;
+
+  case ATOM:
+  case LIST:
+  case CORE:
+  case LAMBDA:
+  case BOOLEAN:
+  case NUMBER:
+  case STRING:
+    return 1;
+
+  default:
+    assert(0);
+  }
 }
 
 List recur_strict_eval(List l) {
@@ -362,6 +391,25 @@ Expression eval(List l) {
             assert(ll != NULL && ll->tail == NULL);
             return ll->head;
           }
+
+        case 'c': // c|ond
+
+          if (strcmp("ond", a)) {
+            break;
+          }
+
+          {  // TODO: check for even number of parameters.
+            List ll = l->tail;
+
+            for (;;) {  // (cond cond1 exp1 cond2 exp2 ...) special form
+
+              if (truthy(eval(cons_c(head_c(ll), NULL)))) {
+                return eval(cons_c(head_c(tail_c(ll)), NULL));
+              }
+
+              ll = tail_c(tail_c(ll));
+            }
+          }
         }
       }
 
@@ -384,6 +432,7 @@ Expression eval(List l) {
 
   case CORE:
   case LAMBDA:
+  case BOOLEAN:
   case NUMBER:
   case STRING:
   case UNDEFINED:
@@ -468,32 +517,54 @@ Expression lookup(Atom atom) {
   switch (*a++) {
   case 'l': // l|ambda
 
-    if (strcmp("ambda", a)) {
-      break;
+    if (strcmp("ambda", a) == 0) { // lambda special form
+      error("evaled 'lambda' special form keyword");
     }
 
-    // lambda special form
-    error("evaled 'lambda' special form keyword");
-    return NULL;
+    break;
 
   case 'q': // q|uote
 
-    if (strcmp("uote", a)) {
-      break;
+    if (strcmp("uote", a) == 0) { // quote special form
+      error("evaled 'quote' special form keyword");
     }
 
-    // quote special form
-    error("evaled 'quote' special form keyword");
-    return NULL;
+    break;
+
+  case 'c': // c|ond
+            // c|ons
+
+    if (strcmp("ond", a) == 0) { // cond special form
+      error("evaled 'cond' special form keyword");
+
+    } else if (strcmp("ons", a) == 0) {
+      return core + 1;
+    }
 
   case 'e': // e|val
-    return strcmp(a, "val") ? NULL : core + 0;
-  case 'c': // c|ons
-    return strcmp(a, "ons") ? NULL : core + 1;
+
+    if (strcmp("val", a) == 0) {
+      return core + 0;
+    }
+
+    break;
+
   case 'h': // h|ead
-    return strcmp(a, "ead") ? NULL : core + 2;
+
+    if (strcmp("ead", a) == 0) {
+      return core + 2;
+    }
+
+    break;
+
   case 't': // t|ail
-    return strcmp(a, "ail") ? NULL : core + 3;
+
+    if (strcmp("ail", a) == 0) {
+      return core + 3;
+    }
+
+    break;
+
   default:
     break;
   }
